@@ -31,7 +31,7 @@ type PanelUpdateInfo struct {
 }
 
 const (
-	panelUpdaterURL      = "https://raw.githubusercontent.com/MHSanaei/3x-ui/main/update.sh"
+	panelUpdaterURL      = "https://raw.githubusercontent.com/byang37/3x-ui/main/update.sh"
 	maxPanelUpdaterBytes = 2 << 20
 )
 
@@ -170,7 +170,7 @@ func downloadPanelUpdater() (string, error) {
 
 func fetchLatestPanelVersion() (string, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get("https://api.github.com/repos/MHSanaei/3x-ui/releases/latest")
+	resp, err := client.Get("https://api.github.com/repos/byang37/3x-ui/releases/latest")
 	if err != nil {
 		return "", err
 	}
