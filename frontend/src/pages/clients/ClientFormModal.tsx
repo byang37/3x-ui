@@ -14,6 +14,7 @@ import {
   Tag,
   message,
 } from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
 
@@ -79,6 +80,7 @@ interface FormState {
   expiryDate: Dayjs | null;
   delayedStart: boolean;
   delayedDays: number;
+  reset: number;
   limitIp: number;
   tgId: number;
   comment: string;
@@ -99,6 +101,7 @@ function emptyForm(): FormState {
     expiryDate: null,
     delayedStart: false,
     delayedDays: 0,
+    reset: 0,
     limitIp: 0,
     tgId: 0,
     comment: '',
@@ -157,6 +160,7 @@ export default function ClientFormModal({
         flow: client.flow || '',
         reverseTag: client.reverse?.tag || '',
         totalGB: bytesToGB(client.totalGB || 0),
+        reset: Number(client.reset) || 0,
         limitIp: client.limitIp || 0,
         tgId: Number(client.tgId) || 0,
         comment: client.comment || '',
@@ -280,6 +284,7 @@ export default function ClientFormModal({
       totalGB: form.totalGB,
       delayedStart: form.delayedStart,
       delayedDays: form.delayedDays,
+      reset: form.reset,
       limitIp: form.limitIp,
       tgId: form.tgId,
       comment: form.comment,
@@ -303,6 +308,7 @@ export default function ClientFormModal({
       flow: showFlow ? (form.flow || '') : '',
       totalGB: gbToBytes(form.totalGB),
       expiryTime,
+      reset: Number(form.reset) || 0,
       limitIp: Number(form.limitIp) || 0,
       tgId: Number(form.tgId) || 0,
       comment: form.comment,
@@ -364,7 +370,7 @@ export default function ClientFormModal({
                     style={{ flex: 1 }}
                     onChange={(e) => update('email', e.target.value)}
                   />
-                  <Button onClick={() => update('email', RandomUtil.randomLowerAndNum(12))}>↻</Button>
+                  <Button icon={<ReloadOutlined />} onClick={() => update('email', RandomUtil.randomLowerAndNum(12))} />
                 </Space.Compact>
               </Form.Item>
             </Col>
@@ -372,7 +378,7 @@ export default function ClientFormModal({
               <Form.Item label={t('pages.clients.subId')}>
                 <Space.Compact style={{ display: 'flex' }}>
                   <Input value={form.subId} style={{ flex: 1 }} onChange={(e) => update('subId', e.target.value)} />
-                  <Button onClick={() => update('subId', RandomUtil.randomLowerAndNum(16))}>↻</Button>
+                  <Button icon={<ReloadOutlined />} onClick={() => update('subId', RandomUtil.randomLowerAndNum(16))} />
                 </Space.Compact>
               </Form.Item>
             </Col>
@@ -383,7 +389,7 @@ export default function ClientFormModal({
               <Form.Item label={t('pages.clients.hysteriaAuth')}>
                 <Space.Compact style={{ display: 'flex' }}>
                   <Input value={form.auth} style={{ flex: 1 }} onChange={(e) => update('auth', e.target.value)} />
-                  <Button onClick={() => update('auth', RandomUtil.randomLowerAndNum(16))}>↻</Button>
+                  <Button icon={<ReloadOutlined />} onClick={() => update('auth', RandomUtil.randomLowerAndNum(16))} />
                 </Space.Compact>
               </Form.Item>
             </Col>
@@ -391,7 +397,7 @@ export default function ClientFormModal({
               <Form.Item label={t('pages.clients.password')}>
                 <Space.Compact style={{ display: 'flex' }}>
                   <Input value={form.password} style={{ flex: 1 }} onChange={(e) => update('password', e.target.value)} />
-                  <Button onClick={() => update('password', RandomUtil.randomLowerAndNum(16))}>↻</Button>
+                  <Button icon={<ReloadOutlined />} onClick={() => update('password', RandomUtil.randomLowerAndNum(16))} />
                 </Space.Compact>
               </Form.Item>
             </Col>
@@ -402,7 +408,7 @@ export default function ClientFormModal({
               <Form.Item label={t('pages.clients.uuid')}>
                 <Space.Compact style={{ display: 'flex' }}>
                   <Input value={form.uuid} style={{ flex: 1 }} onChange={(e) => update('uuid', e.target.value)} />
-                  <Button onClick={() => update('uuid', RandomUtil.randomUUID())}>↻</Button>
+                  <Button icon={<ReloadOutlined />} onClick={() => update('uuid', RandomUtil.randomUUID())} />
                 </Space.Compact>
               </Form.Item>
             </Col>
@@ -452,32 +458,39 @@ export default function ClientFormModal({
             </Col>
           </Row>
 
-          {(showFlow || showReverseTag) && (
-            <Row gutter={16}>
-              {showFlow && (
-                <Col xs={24} md={12}>
-                  <Form.Item label={t('pages.clients.flow')}>
-                    <Select
-                      value={form.flow}
-                      onChange={(v) => update('flow', v)}
-                      options={[
-                        { value: '', label: t('none') },
-                        ...FLOW_OPTIONS.map((k) => ({ value: k, label: k })),
-                      ]}
-                    />
-                  </Form.Item>
-                </Col>
-              )}
-              {showReverseTag && (
-                <Col xs={24} md={12}>
-                  <Form.Item label={t('pages.clients.reverseTag')}>
-                    <Input value={form.reverseTag} placeholder={t('pages.clients.reverseTagPlaceholder')}
-                      onChange={(e) => update('reverseTag', e.target.value)} />
-                  </Form.Item>
-                </Col>
-              )}
-            </Row>
-          )}
+          <Row gutter={16}>
+            <Col xs={24} md={12}>
+              <Form.Item
+                label={t('pages.clients.renew')}
+                tooltip={t('pages.clients.renewDesc')}
+              >
+                <InputNumber value={form.reset} min={0} style={{ width: '100%' }}
+                  onChange={(v) => update('reset', Number(v) || 0)} />
+              </Form.Item>
+            </Col>
+            {showReverseTag && (
+              <Col xs={24} md={12}>
+                <Form.Item label={t('pages.clients.reverseTag')}>
+                  <Input value={form.reverseTag} placeholder={t('pages.clients.reverseTagPlaceholder')}
+                    onChange={(e) => update('reverseTag', e.target.value)} />
+                </Form.Item>
+              </Col>
+            )}
+            {showFlow && (
+              <Col xs={24} md={12}>
+                <Form.Item label={t('pages.clients.flow')}>
+                  <Select
+                    value={form.flow}
+                    onChange={(v) => update('flow', v)}
+                    options={[
+                      { value: '', label: t('none') },
+                      ...FLOW_OPTIONS.map((k) => ({ value: k, label: k })),
+                    ]}
+                  />
+                </Form.Item>
+              </Col>
+            )}
+          </Row>
 
           <Row gutter={16}>
             {tgBotEnable && (
@@ -503,6 +516,9 @@ export default function ClientFormModal({
               onChange={(v) => update('inboundIds', v)}
               options={inboundOptions}
               placeholder={t('pages.clients.selectInbound')}
+              maxTagCount="responsive"
+              placement="topLeft"
+              listHeight={220}
               showSearch={{
                 filterOption: (input, option) => ((option?.label as string) || '').toLowerCase().includes(input.toLowerCase()),
               }}

@@ -26,7 +26,7 @@ import {
   DeleteOutlined,
   MinusOutlined,
   PlusOutlined,
-  SyncOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 
 import { HttpUtil, NumberFormatter, RandomUtil, SizeFormatter, Wireguard } from '@/utils';
@@ -762,6 +762,18 @@ export default function InboundFormModal({
           security: 'tls',
           hysteriaSettings: HysteriaStreamSettingsSchema.parse({}),
           tlsSettings: tls,
+          // Hysteria2 needs an obfs wrapper on the FinalMask side; seed
+          // it with salamander + a random password so the listener boots
+          // with a usable default. Re-selecting Hysteria from another
+          // protocol re-runs this and refreshes the password — that's
+          // intentional, the form was already being reset.
+          finalmask: {
+            tcp: [],
+            udp: [{
+              type: 'salamander',
+              settings: { password: RandomUtil.randomLowerAndNum(16) },
+            }],
+          },
         });
       } else {
         const current = form.getFieldValue('streamSettings') as { network?: string } | undefined;
@@ -1052,16 +1064,13 @@ export default function InboundFormModal({
     <>
       {protocol === Protocols.WIREGUARD && (
         <>
-          <Form.Item
-            name={['settings', 'secretKey']}
-            label={
-              <>
-                Secret key{' '}
-                <SyncOutlined className="random-icon" onClick={regenInboundWg} />
-              </>
-            }
-          >
-            <Input />
+          <Form.Item label="Secret key">
+            <Space.Compact block>
+              <Form.Item name={['settings', 'secretKey']} noStyle>
+                <Input style={{ width: 'calc(100% - 32px)' }} />
+              </Form.Item>
+              <Button icon={<ReloadOutlined />} onClick={regenInboundWg} />
+            </Space.Compact>
           </Form.Item>
           <Form.Item label="Public key">
             <Input value={wgPubKey} disabled />
@@ -1110,19 +1119,16 @@ export default function InboundFormModal({
                         )}
                       </Space>
                     </Divider>
-                    <Form.Item
-                      name={[field.name, 'privateKey']}
-                      label={
-                        <>
-                          Secret key{' '}
-                          <SyncOutlined
-                            className="random-icon"
-                            onClick={() => regenWgPeerKeypair(field.name)}
-                          />
-                        </>
-                      }
-                    >
-                      <Input />
+                    <Form.Item label="Secret key">
+                      <Space.Compact block>
+                        <Form.Item name={[field.name, 'privateKey']} noStyle>
+                          <Input style={{ width: 'calc(100% - 32px)' }} />
+                        </Form.Item>
+                        <Button
+                          icon={<ReloadOutlined />}
+                          onClick={() => regenWgPeerKeypair(field.name)}
+                        />
+                      </Space.Compact>
                     </Form.Item>
                     <Form.Item name={[field.name, 'publicKey']} label="Public key">
                       <Input />
@@ -1366,25 +1372,22 @@ export default function InboundFormModal({
             />
           </Form.Item>
           {isSSWith2022 && (
-            <Form.Item
-              name={['settings', 'password']}
-              label={
-                <>
-                  Password{' '}
-                  <SyncOutlined
-                    className="random-icon"
-                    onClick={() => {
-                      const method = form.getFieldValue(['settings', 'method']);
-                      form.setFieldValue(
-                        ['settings', 'password'],
-                        RandomUtil.randomShadowsocksPassword(method as string),
-                      );
-                    }}
-                  />
-                </>
-              }
-            >
-              <Input />
+            <Form.Item label="Password">
+              <Space.Compact block>
+                <Form.Item name={['settings', 'password']} noStyle>
+                  <Input style={{ width: 'calc(100% - 32px)' }} />
+                </Form.Item>
+                <Button
+                  icon={<ReloadOutlined />}
+                  onClick={() => {
+                    const method = form.getFieldValue(['settings', 'method']);
+                    form.setFieldValue(
+                      ['settings', 'password'],
+                      RandomUtil.randomShadowsocksPassword(method as string),
+                    );
+                  }}
+                />
+              </Space.Compact>
             </Form.Item>
           )}
           <Form.Item name={['settings', 'network']} label="Network">
@@ -1450,13 +1453,13 @@ export default function InboundFormModal({
   // the Select shows blank instead of the "Default (path)" option.
   const newStreamSlice = (n: string): Record<string, unknown> => {
     switch (n) {
-      case 'tcp':         return TcpStreamSettingsSchema.parse({ header: { type: 'none' } });
-      case 'kcp':         return KcpStreamSettingsSchema.parse({});
-      case 'ws':          return WsStreamSettingsSchema.parse({});
-      case 'grpc':        return GrpcStreamSettingsSchema.parse({});
+      case 'tcp': return TcpStreamSettingsSchema.parse({ header: { type: 'none' } });
+      case 'kcp': return KcpStreamSettingsSchema.parse({});
+      case 'ws': return WsStreamSettingsSchema.parse({});
+      case 'grpc': return GrpcStreamSettingsSchema.parse({});
       case 'httpupgrade': return HttpUpgradeStreamSettingsSchema.parse({});
-      case 'xhttp':       return XHttpStreamSettingsSchema.parse({});
-      default:            return {};
+      case 'xhttp': return XHttpStreamSettingsSchema.parse({});
+      default: return {};
     }
   };
   const onNetworkChange = (next: string) => {
@@ -1467,6 +1470,24 @@ export default function InboundFormModal({
       if (k !== `${next}Settings`) delete cleaned[k];
     }
     cleaned[`${next}Settings`] = newStreamSlice(next);
+    // mKCP wants a UDP mask wrapper on the FinalMask side; seed it with
+    // `mkcp-original` so the inbound boots with a sensible default
+    // instead of unobfuscated mKCP traffic. The user can still edit or
+    // clear the mask via the FinalMask section.
+    if (next === 'kcp') {
+      const fm = (cleaned.finalmask as Record<string, unknown> | undefined) ?? {};
+      const udp = Array.isArray(fm.udp) ? (fm.udp as unknown[]) : [];
+      const hasMkcp = udp.some((m) => {
+        const entry = m as { type?: string };
+        return entry?.type === 'mkcp-original';
+      });
+      if (!hasMkcp) {
+        cleaned.finalmask = {
+          ...fm,
+          udp: [...udp, { type: 'mkcp-original', settings: {} }],
+        };
+      }
+    }
     form.setFieldValue('streamSettings', cleaned);
   };
 
@@ -1478,7 +1499,7 @@ export default function InboundFormModal({
             style={{ width: '75%' }}
             onChange={onNetworkChange}
             options={[
-              { value: 'tcp', label: 'TCP (RAW)' },
+              { value: 'tcp', label: 'RAW' },
               { value: 'kcp', label: 'mKCP' },
               { value: 'ws', label: 'WebSocket' },
               { value: 'grpc', label: 'gRPC' },
@@ -1525,10 +1546,10 @@ export default function InboundFormModal({
                         ['streamSettings', 'hysteriaSettings', 'masquerade'],
                         checked
                           ? {
-                              type: '', dir: '', url: '',
-                              rewriteHost: false, insecure: false,
-                              content: '', headers: {}, statusCode: 0,
-                            }
+                            type: '', dir: '', url: '',
+                            rewriteHost: false, insecure: false,
+                            content: '', headers: {}, statusCode: 0,
+                          }
                           : undefined,
                       )
                     }
@@ -1648,20 +1669,20 @@ export default function InboundFormModal({
                         ['streamSettings', 'tcpSettings', 'header'],
                         v
                           ? {
-                              type: 'http',
-                              request: {
-                                version: '1.1',
-                                method: 'GET',
-                                path: ['/'],
-                                headers: {},
-                              },
-                              response: {
-                                version: '1.1',
-                                status: '200',
-                                reason: 'OK',
-                                headers: {},
-                              },
-                            }
+                            type: 'http',
+                            request: {
+                              version: '1.1',
+                              method: 'GET',
+                              path: ['/'],
+                              headers: {},
+                            },
+                            response: {
+                              version: '1.1',
+                              status: '200',
+                              reason: 'OK',
+                              headers: {},
+                            },
+                          }
                           : { type: 'none' },
                       );
                     }}
@@ -2185,233 +2206,233 @@ export default function InboundFormModal({
               </Form.Item>
               {on && (
                 <>
-          <Form.Item name={['streamSettings', 'sockopt', 'mark']} label="Route Mark">
-            <InputNumber min={0} />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'sockopt', 'tcpKeepAliveInterval']}
-            label="TCP Keep Alive Interval"
-          >
-            <InputNumber min={0} />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'sockopt', 'tcpKeepAliveIdle']}
-            label="TCP Keep Alive Idle"
-          >
-            <InputNumber min={0} />
-          </Form.Item>
-          <Form.Item name={['streamSettings', 'sockopt', 'tcpMaxSeg']} label="TCP Max Seg">
-            <InputNumber min={0} />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'sockopt', 'tcpUserTimeout']}
-            label="TCP User Timeout"
-          >
-            <InputNumber min={0} />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'sockopt', 'tcpWindowClamp']}
-            label="TCP Window Clamp"
-          >
-            <InputNumber min={0} />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'sockopt', 'acceptProxyProtocol']}
-            label="Proxy Protocol"
-            valuePropName="checked"
-          >
-            <Switch />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'sockopt', 'tcpFastOpen']}
-            label="TCP Fast Open"
-            valuePropName="checked"
-          >
-            <Switch />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'sockopt', 'tcpMptcp']}
-            label="Multipath TCP"
-            valuePropName="checked"
-          >
-            <Switch />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'sockopt', 'penetrate']}
-            label="Penetrate"
-            valuePropName="checked"
-          >
-            <Switch />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'sockopt', 'V6Only']}
-            label="V6 Only"
-            valuePropName="checked"
-          >
-            <Switch />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'sockopt', 'domainStrategy']}
-            label="Domain Strategy"
-          >
-            <Select
-              style={{ width: '50%' }}
-              options={Object.values(DOMAIN_STRATEGY_OPTION).map((d) => ({ value: d, label: d }))}
-            />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'sockopt', 'tcpcongestion']}
-            label="TCP Congestion"
-          >
-            <Select
-              style={{ width: '50%' }}
-              options={Object.values(TCP_CONGESTION_OPTION).map((c) => ({ value: c, label: c }))}
-            />
-          </Form.Item>
-          <Form.Item name={['streamSettings', 'sockopt', 'tproxy']} label="TProxy">
-            <Select
-              style={{ width: '50%' }}
-              options={[
-                { value: 'off', label: 'Off' },
-                { value: 'redirect', label: 'Redirect' },
-                { value: 'tproxy', label: 'TProxy' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name={['streamSettings', 'sockopt', 'dialerProxy']} label="Dialer Proxy">
-            <Input />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'sockopt', 'interfaceName']}
-            label="Interface Name"
-          >
-            <Input />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'sockopt', 'trustedXForwardedFor']}
-            label="Trusted X-Forwarded-For"
-          >
-            <Select
-              mode="tags"
-              style={{ width: '100%' }}
-              tokenSeparators={[',']}
-              options={[
-                { value: 'CF-Connecting-IP', label: 'CF-Connecting-IP' },
-                { value: 'X-Real-IP', label: 'X-Real-IP' },
-                { value: 'True-Client-IP', label: 'True-Client-IP' },
-                { value: 'X-Client-IP', label: 'X-Client-IP' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'sockopt', 'addressPortStrategy']}
-            label="Address+port strategy"
-          >
-            <Select
-              style={{ width: '50%' }}
-              options={Object.values(Address_Port_Strategy).map((v) => ({ value: v, label: v }))}
-            />
-          </Form.Item>
-          <Form.Item shouldUpdate noStyle>
-            {({ getFieldValue, setFieldValue }) => {
-              const he = getFieldValue(['streamSettings', 'sockopt', 'happyEyeballs']);
-              const hasHe = he != null;
-              return (
-                <>
-                  <Form.Item label="Happy Eyeballs">
-                    <Switch
-                      checked={hasHe}
-                      onChange={(v) => {
-                        setFieldValue(
-                          ['streamSettings', 'sockopt', 'happyEyeballs'],
-                          v ? HappyEyeballsSchema.parse({}) : undefined,
-                        );
-                      }}
+                  <Form.Item name={['streamSettings', 'sockopt', 'mark']} label="Route Mark">
+                    <InputNumber min={0} />
+                  </Form.Item>
+                  <Form.Item
+                    name={['streamSettings', 'sockopt', 'tcpKeepAliveInterval']}
+                    label="TCP Keep Alive Interval"
+                  >
+                    <InputNumber min={0} />
+                  </Form.Item>
+                  <Form.Item
+                    name={['streamSettings', 'sockopt', 'tcpKeepAliveIdle']}
+                    label="TCP Keep Alive Idle"
+                  >
+                    <InputNumber min={0} />
+                  </Form.Item>
+                  <Form.Item name={['streamSettings', 'sockopt', 'tcpMaxSeg']} label="TCP Max Seg">
+                    <InputNumber min={0} />
+                  </Form.Item>
+                  <Form.Item
+                    name={['streamSettings', 'sockopt', 'tcpUserTimeout']}
+                    label="TCP User Timeout"
+                  >
+                    <InputNumber min={0} />
+                  </Form.Item>
+                  <Form.Item
+                    name={['streamSettings', 'sockopt', 'tcpWindowClamp']}
+                    label="TCP Window Clamp"
+                  >
+                    <InputNumber min={0} />
+                  </Form.Item>
+                  <Form.Item
+                    name={['streamSettings', 'sockopt', 'acceptProxyProtocol']}
+                    label="Proxy Protocol"
+                    valuePropName="checked"
+                  >
+                    <Switch />
+                  </Form.Item>
+                  <Form.Item
+                    name={['streamSettings', 'sockopt', 'tcpFastOpen']}
+                    label="TCP Fast Open"
+                    valuePropName="checked"
+                  >
+                    <Switch />
+                  </Form.Item>
+                  <Form.Item
+                    name={['streamSettings', 'sockopt', 'tcpMptcp']}
+                    label="Multipath TCP"
+                    valuePropName="checked"
+                  >
+                    <Switch />
+                  </Form.Item>
+                  <Form.Item
+                    name={['streamSettings', 'sockopt', 'penetrate']}
+                    label="Penetrate"
+                    valuePropName="checked"
+                  >
+                    <Switch />
+                  </Form.Item>
+                  <Form.Item
+                    name={['streamSettings', 'sockopt', 'V6Only']}
+                    label="V6 Only"
+                    valuePropName="checked"
+                  >
+                    <Switch />
+                  </Form.Item>
+                  <Form.Item
+                    name={['streamSettings', 'sockopt', 'domainStrategy']}
+                    label="Domain Strategy"
+                  >
+                    <Select
+                      style={{ width: '50%' }}
+                      options={Object.values(DOMAIN_STRATEGY_OPTION).map((d) => ({ value: d, label: d }))}
                     />
                   </Form.Item>
-                  {hasHe && (
-                    <>
-                      <Form.Item
-                        name={['streamSettings', 'sockopt', 'happyEyeballs', 'tryDelayMs']}
-                        label="Try delay (ms)"
-                      >
-                        <InputNumber min={0} placeholder="0 disabled — 250 recommended" />
-                      </Form.Item>
-                      <Form.Item
-                        name={['streamSettings', 'sockopt', 'happyEyeballs', 'prioritizeIPv6']}
-                        label="Prioritize IPv6"
-                        valuePropName="checked"
-                      >
-                        <Switch />
-                      </Form.Item>
-                      <Form.Item
-                        name={['streamSettings', 'sockopt', 'happyEyeballs', 'interleave']}
-                        label="Interleave"
-                      >
-                        <InputNumber min={1} />
-                      </Form.Item>
-                      <Form.Item
-                        name={['streamSettings', 'sockopt', 'happyEyeballs', 'maxConcurrentTry']}
-                        label="Max concurrent try"
-                      >
-                        <InputNumber min={0} />
-                      </Form.Item>
-                    </>
-                  )}
-                </>
-              );
-            }}
-          </Form.Item>
-          <Form.List name={['streamSettings', 'sockopt', 'customSockopt']}>
-            {(fields, { add, remove }) => (
-              <>
-                <Form.Item label="Custom sockopt">
-                  <Button
-                    type="dashed"
-                    size="small"
-                    onClick={() => add({ type: 'int', level: '6', opt: '', value: '' })}
+                  <Form.Item
+                    name={['streamSettings', 'sockopt', 'tcpcongestion']}
+                    label="TCP Congestion"
                   >
-                    + Add custom option
-                  </Button>
-                </Form.Item>
-                {fields.map((field) => (
-                  <Space.Compact key={field.key} style={{ display: 'flex', marginBottom: 8 }}>
-                    <Form.Item name={[field.name, 'system']} noStyle>
-                      <Select
-                        placeholder="all"
-                        allowClear
-                        style={{ width: 100 }}
-                        options={[
-                          { value: 'linux', label: 'linux' },
-                          { value: 'windows', label: 'windows' },
-                          { value: 'darwin', label: 'darwin' },
-                        ]}
-                      />
-                    </Form.Item>
-                    <Form.Item name={[field.name, 'type']} noStyle>
-                      <Select
-                        style={{ width: 80 }}
-                        options={[
-                          { value: 'int', label: 'int' },
-                          { value: 'str', label: 'str' },
-                        ]}
-                      />
-                    </Form.Item>
-                    <Form.Item name={[field.name, 'level']} noStyle>
-                      <Input placeholder="level (6=TCP)" style={{ width: 100 }} />
-                    </Form.Item>
-                    <Form.Item name={[field.name, 'opt']} noStyle>
-                      <Input placeholder="opt" style={{ width: 120 }} />
-                    </Form.Item>
-                    <Form.Item name={[field.name, 'value']} noStyle>
-                      <Input placeholder="value" style={{ flex: 1 }} />
-                    </Form.Item>
-                    <Button danger onClick={() => remove(field.name)}>−</Button>
-                  </Space.Compact>
-                ))}
-              </>
-            )}
-          </Form.List>
+                    <Select
+                      style={{ width: '50%' }}
+                      options={Object.values(TCP_CONGESTION_OPTION).map((c) => ({ value: c, label: c }))}
+                    />
+                  </Form.Item>
+                  <Form.Item name={['streamSettings', 'sockopt', 'tproxy']} label="TProxy">
+                    <Select
+                      style={{ width: '50%' }}
+                      options={[
+                        { value: 'off', label: 'Off' },
+                        { value: 'redirect', label: 'Redirect' },
+                        { value: 'tproxy', label: 'TProxy' },
+                      ]}
+                    />
+                  </Form.Item>
+                  <Form.Item name={['streamSettings', 'sockopt', 'dialerProxy']} label="Dialer Proxy">
+                    <Input />
+                  </Form.Item>
+                  <Form.Item
+                    name={['streamSettings', 'sockopt', 'interfaceName']}
+                    label="Interface Name"
+                  >
+                    <Input />
+                  </Form.Item>
+                  <Form.Item
+                    name={['streamSettings', 'sockopt', 'trustedXForwardedFor']}
+                    label="Trusted X-Forwarded-For"
+                  >
+                    <Select
+                      mode="tags"
+                      style={{ width: '100%' }}
+                      tokenSeparators={[',']}
+                      options={[
+                        { value: 'CF-Connecting-IP', label: 'CF-Connecting-IP' },
+                        { value: 'X-Real-IP', label: 'X-Real-IP' },
+                        { value: 'True-Client-IP', label: 'True-Client-IP' },
+                        { value: 'X-Client-IP', label: 'X-Client-IP' },
+                      ]}
+                    />
+                  </Form.Item>
+                  <Form.Item
+                    name={['streamSettings', 'sockopt', 'addressPortStrategy']}
+                    label="Address+port strategy"
+                  >
+                    <Select
+                      style={{ width: '50%' }}
+                      options={Object.values(Address_Port_Strategy).map((v) => ({ value: v, label: v }))}
+                    />
+                  </Form.Item>
+                  <Form.Item shouldUpdate noStyle>
+                    {({ getFieldValue, setFieldValue }) => {
+                      const he = getFieldValue(['streamSettings', 'sockopt', 'happyEyeballs']);
+                      const hasHe = he != null;
+                      return (
+                        <>
+                          <Form.Item label="Happy Eyeballs">
+                            <Switch
+                              checked={hasHe}
+                              onChange={(v) => {
+                                setFieldValue(
+                                  ['streamSettings', 'sockopt', 'happyEyeballs'],
+                                  v ? HappyEyeballsSchema.parse({}) : undefined,
+                                );
+                              }}
+                            />
+                          </Form.Item>
+                          {hasHe && (
+                            <>
+                              <Form.Item
+                                name={['streamSettings', 'sockopt', 'happyEyeballs', 'tryDelayMs']}
+                                label="Try delay (ms)"
+                              >
+                                <InputNumber min={0} placeholder="0 disabled — 250 recommended" />
+                              </Form.Item>
+                              <Form.Item
+                                name={['streamSettings', 'sockopt', 'happyEyeballs', 'prioritizeIPv6']}
+                                label="Prioritize IPv6"
+                                valuePropName="checked"
+                              >
+                                <Switch />
+                              </Form.Item>
+                              <Form.Item
+                                name={['streamSettings', 'sockopt', 'happyEyeballs', 'interleave']}
+                                label="Interleave"
+                              >
+                                <InputNumber min={1} />
+                              </Form.Item>
+                              <Form.Item
+                                name={['streamSettings', 'sockopt', 'happyEyeballs', 'maxConcurrentTry']}
+                                label="Max concurrent try"
+                              >
+                                <InputNumber min={0} />
+                              </Form.Item>
+                            </>
+                          )}
+                        </>
+                      );
+                    }}
+                  </Form.Item>
+                  <Form.List name={['streamSettings', 'sockopt', 'customSockopt']}>
+                    {(fields, { add, remove }) => (
+                      <>
+                        <Form.Item label="Custom sockopt">
+                          <Button
+                            type="dashed"
+                            size="small"
+                            onClick={() => add({ type: 'int', level: '6', opt: '', value: '' })}
+                          >
+                            + Add custom option
+                          </Button>
+                        </Form.Item>
+                        {fields.map((field) => (
+                          <Space.Compact key={field.key} style={{ display: 'flex', marginBottom: 8 }}>
+                            <Form.Item name={[field.name, 'system']} noStyle>
+                              <Select
+                                placeholder="all"
+                                allowClear
+                                style={{ width: 100 }}
+                                options={[
+                                  { value: 'linux', label: 'linux' },
+                                  { value: 'windows', label: 'windows' },
+                                  { value: 'darwin', label: 'darwin' },
+                                ]}
+                              />
+                            </Form.Item>
+                            <Form.Item name={[field.name, 'type']} noStyle>
+                              <Select
+                                style={{ width: 80 }}
+                                options={[
+                                  { value: 'int', label: 'int' },
+                                  { value: 'str', label: 'str' },
+                                ]}
+                              />
+                            </Form.Item>
+                            <Form.Item name={[field.name, 'level']} noStyle>
+                              <Input placeholder="level (6=TCP)" style={{ width: 100 }} />
+                            </Form.Item>
+                            <Form.Item name={[field.name, 'opt']} noStyle>
+                              <Input placeholder="opt" style={{ width: 120 }} />
+                            </Form.Item>
+                            <Form.Item name={[field.name, 'value']} noStyle>
+                              <Input placeholder="value" style={{ flex: 1 }} />
+                            </Form.Item>
+                            <Button danger onClick={() => remove(field.name)}>−</Button>
+                          </Space.Compact>
+                        ))}
+                      </>
+                    )}
+                  </Form.List>
                 </>
               )}
             </>
@@ -2477,240 +2498,240 @@ export default function InboundFormModal({
           return (
             <>
               <Form.Item name={['streamSettings', 'tlsSettings', 'serverName']} label="SNI">
-            <Input placeholder="Server Name Indication" />
-          </Form.Item>
-          <Form.Item name={['streamSettings', 'tlsSettings', 'cipherSuites']} label="Cipher Suites">
-            <Select
-              options={[
-                { value: '', label: 'Auto' },
-                ...Object.entries(TLS_CIPHER_OPTION).map(([k, v]) => ({ value: v, label: k })),
-              ]}
-            />
-          </Form.Item>
-          <Form.Item label="Min/Max Version">
-            <Space.Compact block>
-              <Form.Item name={['streamSettings', 'tlsSettings', 'minVersion']} noStyle>
+                <Input placeholder="Server Name Indication" />
+              </Form.Item>
+              <Form.Item name={['streamSettings', 'tlsSettings', 'cipherSuites']} label="Cipher Suites">
                 <Select
-                  style={{ width: '50%' }}
-                  options={Object.values(TLS_VERSION_OPTION).map((v) => ({ value: v, label: v }))}
+                  options={[
+                    { value: '', label: 'Auto' },
+                    ...Object.entries(TLS_CIPHER_OPTION).map(([k, v]) => ({ value: v, label: k })),
+                  ]}
                 />
               </Form.Item>
-              <Form.Item name={['streamSettings', 'tlsSettings', 'maxVersion']} noStyle>
+              <Form.Item label="Min/Max Version">
+                <Space.Compact block>
+                  <Form.Item name={['streamSettings', 'tlsSettings', 'minVersion']} noStyle>
+                    <Select
+                      style={{ width: '50%' }}
+                      options={Object.values(TLS_VERSION_OPTION).map((v) => ({ value: v, label: v }))}
+                    />
+                  </Form.Item>
+                  <Form.Item name={['streamSettings', 'tlsSettings', 'maxVersion']} noStyle>
+                    <Select
+                      style={{ width: '50%' }}
+                      options={Object.values(TLS_VERSION_OPTION).map((v) => ({ value: v, label: v }))}
+                    />
+                  </Form.Item>
+                </Space.Compact>
+              </Form.Item>
+              <Form.Item
+                name={['streamSettings', 'tlsSettings', 'settings', 'fingerprint']}
+                label="uTLS"
+              >
                 <Select
-                  style={{ width: '50%' }}
-                  options={Object.values(TLS_VERSION_OPTION).map((v) => ({ value: v, label: v }))}
+                  options={[
+                    { value: '', label: 'None' },
+                    ...Object.values(UTLS_FINGERPRINT).map((fp) => ({ value: fp, label: fp })),
+                  ]}
                 />
               </Form.Item>
-            </Space.Compact>
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'tlsSettings', 'settings', 'fingerprint']}
-            label="uTLS"
-          >
-            <Select
-              options={[
-                { value: '', label: 'None' },
-                ...Object.values(UTLS_FINGERPRINT).map((fp) => ({ value: fp, label: fp })),
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name={['streamSettings', 'tlsSettings', 'alpn']} label="ALPN">
-            <Select
-              mode="multiple"
-              tokenSeparators={[',']}
-              style={{ width: '100%' }}
-              options={Object.values(ALPN_OPTION).map((a) => ({ value: a, label: a }))}
-            />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'tlsSettings', 'rejectUnknownSni']}
-            label="Reject Unknown SNI"
-            valuePropName="checked"
-          >
-            <Switch />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'tlsSettings', 'disableSystemRoot']}
-            label="Disable System Root"
-            valuePropName="checked"
-          >
-            <Switch />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'tlsSettings', 'enableSessionResumption']}
-            label="Session Resumption"
-            valuePropName="checked"
-          >
-            <Switch />
-          </Form.Item>
+              <Form.Item name={['streamSettings', 'tlsSettings', 'alpn']} label="ALPN">
+                <Select
+                  mode="multiple"
+                  tokenSeparators={[',']}
+                  style={{ width: '100%' }}
+                  options={Object.values(ALPN_OPTION).map((a) => ({ value: a, label: a }))}
+                />
+              </Form.Item>
+              <Form.Item
+                name={['streamSettings', 'tlsSettings', 'rejectUnknownSni']}
+                label="Reject Unknown SNI"
+                valuePropName="checked"
+              >
+                <Switch />
+              </Form.Item>
+              <Form.Item
+                name={['streamSettings', 'tlsSettings', 'disableSystemRoot']}
+                label="Disable System Root"
+                valuePropName="checked"
+              >
+                <Switch />
+              </Form.Item>
+              <Form.Item
+                name={['streamSettings', 'tlsSettings', 'enableSessionResumption']}
+                label="Session Resumption"
+                valuePropName="checked"
+              >
+                <Switch />
+              </Form.Item>
 
-          <Form.List name={['streamSettings', 'tlsSettings', 'certificates']}>
-            {(certFields, { add, remove }) => (
-              <>
-                <Form.Item label={t('certificate')}>
-                  <Button
-                    type="primary"
-                    size="small"
-                    onClick={() => add({
-                      useFile: true,
-                      certificateFile: '',
-                      keyFile: '',
-                      certificate: [],
-                      key: [],
-                      oneTimeLoading: false,
-                      usage: 'encipherment',
-                      buildChain: false,
-                    })}
-                  >
-                    <PlusOutlined />
-                  </Button>
-                </Form.Item>
-                {certFields.map((certField, idx) => (
-                  <div key={certField.key}>
-                    <Form.Item
-                      name={[certField.name, 'useFile']}
-                      label={`${t('certificate')} ${idx + 1}`}
-                    >
-                      <Radio.Group buttonStyle="solid">
-                        <Radio.Button value={true}>
-                          {t('pages.inbounds.certificatePath')}
-                        </Radio.Button>
-                        <Radio.Button value={false}>
-                          {t('pages.inbounds.certificateContent')}
-                        </Radio.Button>
-                      </Radio.Group>
+              <Form.List name={['streamSettings', 'tlsSettings', 'certificates']}>
+                {(certFields, { add, remove }) => (
+                  <>
+                    <Form.Item label={t('certificate')}>
+                      <Button
+                        type="primary"
+                        size="small"
+                        onClick={() => add({
+                          useFile: true,
+                          certificateFile: '',
+                          keyFile: '',
+                          certificate: [],
+                          key: [],
+                          oneTimeLoading: false,
+                          usage: 'encipherment',
+                          buildChain: false,
+                        })}
+                      >
+                        <PlusOutlined />
+                      </Button>
                     </Form.Item>
-                    {certFields.length > 1 && (
-                      <Form.Item label=" ">
-                        <Button
-                          size="small"
-                          danger
-                          onClick={() => remove(certField.name)}
+                    {certFields.map((certField, idx) => (
+                      <div key={certField.key}>
+                        <Form.Item
+                          name={[certField.name, 'useFile']}
+                          label={`${t('certificate')} ${idx + 1}`}
                         >
-                          <MinusOutlined /> Remove
-                        </Button>
-                      </Form.Item>
-                    )}
-                    <Form.Item
-                      noStyle
-                      shouldUpdate={(prev, curr) =>
-                        prev.streamSettings?.tlsSettings?.certificates?.[certField.name]?.useFile
-                        !== curr.streamSettings?.tlsSettings?.certificates?.[certField.name]?.useFile
-                      }
-                    >
-                      {({ getFieldValue }) => {
-                        const useFile = getFieldValue([
-                          'streamSettings', 'tlsSettings', 'certificates',
-                          certField.name, 'useFile',
-                        ]);
-                        return useFile ? (
-                          <>
-                            <Form.Item
-                              name={[certField.name, 'certificateFile']}
-                              label={t('pages.inbounds.publicKey')}
+                          <Radio.Group buttonStyle="solid">
+                            <Radio.Button value={true}>
+                              {t('pages.inbounds.certificatePath')}
+                            </Radio.Button>
+                            <Radio.Button value={false}>
+                              {t('pages.inbounds.certificateContent')}
+                            </Radio.Button>
+                          </Radio.Group>
+                        </Form.Item>
+                        {certFields.length > 1 && (
+                          <Form.Item label=" ">
+                            <Button
+                              size="small"
+                              danger
+                              onClick={() => remove(certField.name)}
                             >
-                              <Input />
-                            </Form.Item>
-                            <Form.Item
-                              name={[certField.name, 'keyFile']}
-                              label={t('pages.inbounds.privatekey')}
-                            >
-                              <Input />
-                            </Form.Item>
-                          </>
-                        ) : (
-                          <>
-                            <Form.Item
-                              name={[certField.name, 'certificate']}
-                              label={t('pages.inbounds.publicKey')}
-                              normalize={(v) => typeof v === 'string'
-                                ? v.split('\n')
-                                : v}
-                              getValueProps={(v) => ({
-                                value: Array.isArray(v) ? v.join('\n') : v,
-                              })}
-                            >
-                              <TextArea autoSize={{ minRows: 3, maxRows: 8 }} />
-                            </Form.Item>
-                            <Form.Item
-                              name={[certField.name, 'key']}
-                              label={t('pages.inbounds.privatekey')}
-                              normalize={(v) => typeof v === 'string'
-                                ? v.split('\n')
-                                : v}
-                              getValueProps={(v) => ({
-                                value: Array.isArray(v) ? v.join('\n') : v,
-                              })}
-                            >
-                              <TextArea autoSize={{ minRows: 3, maxRows: 8 }} />
-                            </Form.Item>
-                          </>
-                        );
-                      }}
-                    </Form.Item>
-                    <Form.Item
-                      name={[certField.name, 'oneTimeLoading']}
-                      label="One Time Loading"
-                      valuePropName="checked"
-                    >
-                      <Switch />
-                    </Form.Item>
-                    <Form.Item
-                      name={[certField.name, 'usage']}
-                      label="Usage Option"
-                    >
-                      <Select
-                        style={{ width: '50%' }}
-                        options={Object.values(USAGE_OPTION).map((u) => ({ value: u, label: u }))}
-                      />
-                    </Form.Item>
-                    <Form.Item
-                      noStyle
-                      shouldUpdate={(prev, curr) =>
-                        prev.streamSettings?.tlsSettings?.certificates?.[certField.name]?.usage
-                        !== curr.streamSettings?.tlsSettings?.certificates?.[certField.name]?.usage
-                      }
-                    >
-                      {({ getFieldValue }) => {
-                        const usage = getFieldValue([
-                          'streamSettings', 'tlsSettings', 'certificates',
-                          certField.name, 'usage',
-                        ]);
-                        if (usage !== 'issue') return null;
-                        return (
-                          <Form.Item
-                            name={[certField.name, 'buildChain']}
-                            label="Build Chain"
-                            valuePropName="checked"
-                          >
-                            <Switch />
+                              <MinusOutlined /> Remove
+                            </Button>
                           </Form.Item>
-                        );
-                      }}
-                    </Form.Item>
-                  </div>
-                ))}
-              </>
-            )}
-          </Form.List>
+                        )}
+                        <Form.Item
+                          noStyle
+                          shouldUpdate={(prev, curr) =>
+                            prev.streamSettings?.tlsSettings?.certificates?.[certField.name]?.useFile
+                            !== curr.streamSettings?.tlsSettings?.certificates?.[certField.name]?.useFile
+                          }
+                        >
+                          {({ getFieldValue }) => {
+                            const useFile = getFieldValue([
+                              'streamSettings', 'tlsSettings', 'certificates',
+                              certField.name, 'useFile',
+                            ]);
+                            return useFile ? (
+                              <>
+                                <Form.Item
+                                  name={[certField.name, 'certificateFile']}
+                                  label={t('pages.inbounds.publicKey')}
+                                >
+                                  <Input />
+                                </Form.Item>
+                                <Form.Item
+                                  name={[certField.name, 'keyFile']}
+                                  label={t('pages.inbounds.privatekey')}
+                                >
+                                  <Input />
+                                </Form.Item>
+                              </>
+                            ) : (
+                              <>
+                                <Form.Item
+                                  name={[certField.name, 'certificate']}
+                                  label={t('pages.inbounds.publicKey')}
+                                  normalize={(v) => typeof v === 'string'
+                                    ? v.split('\n')
+                                    : v}
+                                  getValueProps={(v) => ({
+                                    value: Array.isArray(v) ? v.join('\n') : v,
+                                  })}
+                                >
+                                  <TextArea autoSize={{ minRows: 3, maxRows: 8 }} />
+                                </Form.Item>
+                                <Form.Item
+                                  name={[certField.name, 'key']}
+                                  label={t('pages.inbounds.privatekey')}
+                                  normalize={(v) => typeof v === 'string'
+                                    ? v.split('\n')
+                                    : v}
+                                  getValueProps={(v) => ({
+                                    value: Array.isArray(v) ? v.join('\n') : v,
+                                  })}
+                                >
+                                  <TextArea autoSize={{ minRows: 3, maxRows: 8 }} />
+                                </Form.Item>
+                              </>
+                            );
+                          }}
+                        </Form.Item>
+                        <Form.Item
+                          name={[certField.name, 'oneTimeLoading']}
+                          label="One Time Loading"
+                          valuePropName="checked"
+                        >
+                          <Switch />
+                        </Form.Item>
+                        <Form.Item
+                          name={[certField.name, 'usage']}
+                          label="Usage Option"
+                        >
+                          <Select
+                            style={{ width: '50%' }}
+                            options={Object.values(USAGE_OPTION).map((u) => ({ value: u, label: u }))}
+                          />
+                        </Form.Item>
+                        <Form.Item
+                          noStyle
+                          shouldUpdate={(prev, curr) =>
+                            prev.streamSettings?.tlsSettings?.certificates?.[certField.name]?.usage
+                            !== curr.streamSettings?.tlsSettings?.certificates?.[certField.name]?.usage
+                          }
+                        >
+                          {({ getFieldValue }) => {
+                            const usage = getFieldValue([
+                              'streamSettings', 'tlsSettings', 'certificates',
+                              certField.name, 'usage',
+                            ]);
+                            if (usage !== 'issue') return null;
+                            return (
+                              <Form.Item
+                                name={[certField.name, 'buildChain']}
+                                label="Build Chain"
+                                valuePropName="checked"
+                              >
+                                <Switch />
+                              </Form.Item>
+                            );
+                          }}
+                        </Form.Item>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </Form.List>
 
-          <Form.Item name={['streamSettings', 'tlsSettings', 'echServerKeys']} label="ECH key">
-            <Input />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'tlsSettings', 'settings', 'echConfigList']}
-            label="ECH config"
-          >
-            <Input />
-          </Form.Item>
-          <Form.Item label=" ">
-            <Space>
-              <Button type="primary" loading={saving} onClick={getNewEchCert}>
-                Get New ECH Cert
-              </Button>
-              <Button danger onClick={clearEchCert}>Clear</Button>
-            </Space>
-          </Form.Item>
+              <Form.Item name={['streamSettings', 'tlsSettings', 'echServerKeys']} label="ECH key">
+                <Input />
+              </Form.Item>
+              <Form.Item
+                name={['streamSettings', 'tlsSettings', 'settings', 'echConfigList']}
+                label="ECH config"
+              >
+                <Input />
+              </Form.Item>
+              <Form.Item label=" ">
+                <Space>
+                  <Button type="primary" loading={saving} onClick={getNewEchCert}>
+                    Get New ECH Cert
+                  </Button>
+                  <Button danger onClick={clearEchCert}>Clear</Button>
+                </Space>
+              </Form.Item>
             </>
           );
         }}
@@ -2727,121 +2748,118 @@ export default function InboundFormModal({
           if (sec !== 'reality') return null;
           return (
             <>
-          <Form.Item
-            name={['streamSettings', 'realitySettings', 'show']}
-            label="Show"
-            valuePropName="checked"
-          >
-            <Switch />
-          </Form.Item>
-          <Form.Item name={['streamSettings', 'realitySettings', 'xver']} label="Xver">
-            <InputNumber min={0} />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'realitySettings', 'settings', 'fingerprint']}
-            label="uTLS"
-          >
-            <Select
-              options={Object.values(UTLS_FINGERPRINT).map((fp) => ({ value: fp, label: fp }))}
-            />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'realitySettings', 'target']}
-            label={
-              <>
-                Target{' '}
-                <SyncOutlined className="random-icon" onClick={randomizeRealityTarget} />
-              </>
-            }
-          >
-            <Input />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'realitySettings', 'serverNames']}
-            label={
-              <>
-                SNI{' '}
-                <SyncOutlined className="random-icon" onClick={randomizeRealityTarget} />
-              </>
-            }
-          >
-            <Select mode="tags" tokenSeparators={[',']} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'realitySettings', 'maxTimediff']}
-            label="Max Time Diff (ms)"
-          >
-            <InputNumber min={0} />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'realitySettings', 'minClientVer']}
-            label="Min Client Ver"
-          >
-            <Input placeholder="25.9.11" />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'realitySettings', 'maxClientVer']}
-            label="Max Client Ver"
-          >
-            <Input placeholder="25.9.11" />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'realitySettings', 'shortIds']}
-            label={
-              <>
-                Short IDs{' '}
-                <SyncOutlined className="random-icon" onClick={randomizeShortIds} />
-              </>
-            }
-          >
-            <Select mode="tags" tokenSeparators={[',']} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'realitySettings', 'settings', 'spiderX']}
-            label="SpiderX"
-          >
-            <Input />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'realitySettings', 'settings', 'publicKey']}
-            label={t('pages.inbounds.publicKey')}
-          >
-            <Input.TextArea autoSize={{ minRows: 1, maxRows: 4 }} />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'realitySettings', 'privateKey']}
-            label={t('pages.inbounds.privatekey')}
-          >
-            <Input.TextArea autoSize={{ minRows: 1, maxRows: 4 }} />
-          </Form.Item>
-          <Form.Item label=" ">
-            <Space>
-              <Button type="primary" loading={saving} onClick={genRealityKeypair}>
-                Get New Cert
-              </Button>
-              <Button danger onClick={clearRealityKeypair}>Clear</Button>
-            </Space>
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'realitySettings', 'mldsa65Seed']}
-            label="mldsa65 Seed"
-          >
-            <Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} />
-          </Form.Item>
-          <Form.Item
-            name={['streamSettings', 'realitySettings', 'settings', 'mldsa65Verify']}
-            label="mldsa65 Verify"
-          >
-            <Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} />
-          </Form.Item>
-          <Form.Item label=" ">
-            <Space>
-              <Button type="primary" loading={saving} onClick={genMldsa65}>
-                Get New Seed
-              </Button>
-              <Button danger onClick={clearMldsa65}>Clear</Button>
-            </Space>
-          </Form.Item>
+              <Form.Item
+                name={['streamSettings', 'realitySettings', 'show']}
+                label="Show"
+                valuePropName="checked"
+              >
+                <Switch />
+              </Form.Item>
+              <Form.Item name={['streamSettings', 'realitySettings', 'xver']} label="Xver">
+                <InputNumber min={0} />
+              </Form.Item>
+              <Form.Item
+                name={['streamSettings', 'realitySettings', 'settings', 'fingerprint']}
+                label="uTLS"
+              >
+                <Select
+                  options={Object.values(UTLS_FINGERPRINT).map((fp) => ({ value: fp, label: fp }))}
+                />
+              </Form.Item>
+              <Form.Item label="Target">
+                <Space.Compact block>
+                  <Form.Item name={['streamSettings', 'realitySettings', 'target']} noStyle>
+                    <Input style={{ width: 'calc(100% - 32px)' }} />
+                  </Form.Item>
+                  <Button icon={<ReloadOutlined />} onClick={randomizeRealityTarget} />
+                </Space.Compact>
+              </Form.Item>
+              <Form.Item label="SNI">
+                <Space.Compact block style={{ display: 'flex' }}>
+                  <Form.Item
+                    name={['streamSettings', 'realitySettings', 'serverNames']}
+                    noStyle
+                  >
+                    <Select mode="tags" tokenSeparators={[',']} style={{ flex: 1 }} />
+                  </Form.Item>
+                  <Button icon={<ReloadOutlined />} onClick={randomizeRealityTarget} />
+                </Space.Compact>
+              </Form.Item>
+              <Form.Item
+                name={['streamSettings', 'realitySettings', 'maxTimediff']}
+                label="Max Time Diff (ms)"
+              >
+                <InputNumber min={0} />
+              </Form.Item>
+              <Form.Item
+                name={['streamSettings', 'realitySettings', 'minClientVer']}
+                label="Min Client Ver"
+              >
+                <Input placeholder="25.9.11" />
+              </Form.Item>
+              <Form.Item
+                name={['streamSettings', 'realitySettings', 'maxClientVer']}
+                label="Max Client Ver"
+              >
+                <Input placeholder="25.9.11" />
+              </Form.Item>
+              <Form.Item label="Short IDs">
+                <Space.Compact block style={{ display: 'flex' }}>
+                  <Form.Item
+                    name={['streamSettings', 'realitySettings', 'shortIds']}
+                    noStyle
+                  >
+                    <Select mode="tags" tokenSeparators={[',']} style={{ flex: 1 }} />
+                  </Form.Item>
+                  <Button icon={<ReloadOutlined />} onClick={randomizeShortIds} />
+                </Space.Compact>
+              </Form.Item>
+              <Form.Item
+                name={['streamSettings', 'realitySettings', 'settings', 'spiderX']}
+                label="SpiderX"
+              >
+                <Input />
+              </Form.Item>
+              <Form.Item
+                name={['streamSettings', 'realitySettings', 'settings', 'publicKey']}
+                label={t('pages.inbounds.publicKey')}
+              >
+                <Input.TextArea autoSize={{ minRows: 1, maxRows: 4 }} />
+              </Form.Item>
+              <Form.Item
+                name={['streamSettings', 'realitySettings', 'privateKey']}
+                label={t('pages.inbounds.privatekey')}
+              >
+                <Input.TextArea autoSize={{ minRows: 1, maxRows: 4 }} />
+              </Form.Item>
+              <Form.Item label=" ">
+                <Space>
+                  <Button type="primary" loading={saving} onClick={genRealityKeypair}>
+                    Get New Cert
+                  </Button>
+                  <Button danger onClick={clearRealityKeypair}>Clear</Button>
+                </Space>
+              </Form.Item>
+              <Form.Item
+                name={['streamSettings', 'realitySettings', 'mldsa65Seed']}
+                label="mldsa65 Seed"
+              >
+                <Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} />
+              </Form.Item>
+              <Form.Item
+                name={['streamSettings', 'realitySettings', 'settings', 'mldsa65Verify']}
+                label="mldsa65 Verify"
+              >
+                <Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} />
+              </Form.Item>
+              <Form.Item label=" ">
+                <Space>
+                  <Button type="primary" loading={saving} onClick={genMldsa65}>
+                    Get New Seed
+                  </Button>
+                  <Button danger onClick={clearMldsa65}>Clear</Button>
+                </Space>
+              </Form.Item>
             </>
           );
         }}
@@ -3041,9 +3059,9 @@ export default function InboundFormModal({
               : []),
             ...(streamEnabled
               ? [
-                  { key: 'stream', label: t('pages.inbounds.streamTab'), children: streamTab, forceRender: true },
-                  { key: 'security', label: t('pages.inbounds.securityTab'), children: securityTab, forceRender: true },
-                ]
+                { key: 'stream', label: t('pages.inbounds.streamTab'), children: streamTab, forceRender: true },
+                { key: 'security', label: t('pages.inbounds.securityTab'), children: securityTab, forceRender: true },
+              ]
               : []),
             { key: 'sniffing', label: t('pages.inbounds.sniffingTab'), children: sniffingTab, forceRender: true },
             { key: 'advanced', label: t('pages.xray.advancedTemplate'), children: advancedTab, forceRender: true },

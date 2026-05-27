@@ -108,6 +108,7 @@ export const ClientFormSchema = z.object({
   totalGB: z.number().min(0),
   delayedStart: z.boolean(),
   delayedDays: z.number().int().min(0),
+  reset: z.number().int().min(0),
   limitIp: z.number().int().min(0),
   tgId: z.number().int().min(0),
   comment: z.string(),
@@ -141,6 +142,7 @@ export const ClientBulkAddFormSchema = z.object({
   limitIp: z.number().int().min(0),
   totalGB: z.number().min(0),
   expiryTime: z.number(),
+  reset: z.number().int().min(0),
   inboundIds: z.array(z.number()).min(1, 'pages.clients.selectInbound'),
 });
 

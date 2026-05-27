@@ -532,12 +532,12 @@ func (s *InboundService) AddInbound(inbound *model.Inbound) (*model.Inbound, boo
 	s.normalizeStreamSettings(inbound)
 	inbound.TrafficMultiplier = normalizeTrafficMultiplier(inbound.TrafficMultiplier)
 
-	exist, err := s.checkPortConflict(inbound, 0)
+	conflict, err := s.checkPortConflict(inbound, 0)
 	if err != nil {
 		return inbound, false, err
 	}
-	if exist {
-		return inbound, false, common.NewError("Port already exists:", inbound.Port)
+	if conflict != nil {
+		return inbound, false, common.NewError(conflict.String())
 	}
 
 	inbound.Tag, err = s.resolveInboundTag(inbound, 0)
@@ -801,12 +801,12 @@ func (s *InboundService) UpdateInbound(inbound *model.Inbound) (*model.Inbound, 
 	s.normalizeStreamSettings(inbound)
 	inbound.TrafficMultiplier = normalizeTrafficMultiplier(inbound.TrafficMultiplier)
 
-	exist, err := s.checkPortConflict(inbound, inbound.Id)
+	conflict, err := s.checkPortConflict(inbound, inbound.Id)
 	if err != nil {
 		return inbound, false, err
 	}
-	if exist {
-		return inbound, false, common.NewError("Port already exists:", inbound.Port)
+	if conflict != nil {
+		return inbound, false, common.NewError(conflict.String())
 	}
 
 	oldInbound, err := s.GetInbound(inbound.Id)

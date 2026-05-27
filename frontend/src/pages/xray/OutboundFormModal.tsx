@@ -13,7 +13,7 @@ import {
   Tabs,
   message,
 } from 'antd';
-import { DeleteOutlined, MinusOutlined, PlusOutlined, SyncOutlined } from '@ant-design/icons';
+import { DeleteOutlined, MinusOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 
 import FinalMaskForm from '@/components/FinalMaskForm';
 import HeaderMapEditor from '@/components/HeaderMapEditor';
@@ -98,7 +98,7 @@ function isMuxAllowed(protocol: string, flow: string, network: string): boolean 
 }
 
 const NETWORK_OPTIONS: { value: string; label: string }[] = [
-  { value: 'tcp', label: 'TCP (RAW)' },
+  { value: 'tcp', label: 'RAW' },
   { value: 'kcp', label: 'mKCP' },
   { value: 'ws', label: 'WebSocket' },
   { value: 'grpc', label: 'gRPC' },
@@ -684,11 +684,11 @@ export default function OutboundFormModal({
                                         ['settings', 'fragment'],
                                         checked
                                           ? {
-                                              packets: 'tlshello',
-                                              length: '100-200',
-                                              interval: '10-20',
-                                              maxSplit: '300-400',
-                                            }
+                                            packets: 'tlshello',
+                                            length: '100-200',
+                                            interval: '10-20',
+                                            maxSplit: '300-400',
+                                          }
                                           : { packets: '', length: '', interval: '', maxSplit: '' },
                                       );
                                     }}
@@ -977,23 +977,20 @@ export default function OutboundFormModal({
                         <Form.Item label={t('pages.inbounds.address')} name={['settings', 'address']}>
                           <Input placeholder="comma-separated, e.g. 10.0.0.1,fd00::1" />
                         </Form.Item>
-                        <Form.Item
-                          label={
-                            <>
-                              {t('pages.inbounds.privatekey')}
-                              <SyncOutlined
-                                className="random-icon"
-                                onClick={() => {
-                                  const pair = Wireguard.generateKeypair();
-                                  form.setFieldValue(['settings', 'secretKey'], pair.privateKey);
-                                  form.setFieldValue(['settings', 'pubKey'], pair.publicKey);
-                                }}
-                              />
-                            </>
-                          }
-                          name={['settings', 'secretKey']}
-                        >
-                          <Input />
+                        <Form.Item label={t('pages.inbounds.privatekey')}>
+                          <Space.Compact block>
+                            <Form.Item name={['settings', 'secretKey']} noStyle>
+                              <Input style={{ width: 'calc(100% - 32px)' }} />
+                            </Form.Item>
+                            <Button
+                              icon={<ReloadOutlined />}
+                              onClick={() => {
+                                const pair = Wireguard.generateKeypair();
+                                form.setFieldValue(['settings', 'secretKey'], pair.privateKey);
+                                form.setFieldValue(['settings', 'pubKey'], pair.publicKey);
+                              }}
+                            />
+                          </Space.Compact>
                         </Form.Item>
                         <Form.Item label={t('pages.inbounds.publicKey')} name={['settings', 'pubKey']}>
                           <Input disabled />
@@ -1143,20 +1140,20 @@ export default function OutboundFormModal({
                                           ['streamSettings', 'tcpSettings', 'header'],
                                           checked
                                             ? {
-                                                type: 'http',
-                                                request: {
-                                                  version: '1.1',
-                                                  method: 'GET',
-                                                  path: ['/'],
-                                                  headers: {},
-                                                },
-                                                response: {
-                                                  version: '1.1',
-                                                  status: '200',
-                                                  reason: 'OK',
-                                                  headers: {},
-                                                },
-                                              }
+                                              type: 'http',
+                                              request: {
+                                                version: '1.1',
+                                                method: 'GET',
+                                                path: ['/'],
+                                                headers: {},
+                                              },
+                                              response: {
+                                                version: '1.1',
+                                                status: '200',
+                                                reason: 'OK',
+                                                headers: {},
+                                              },
+                                            }
                                             : { type: 'none' },
                                         )
                                       }
@@ -1771,8 +1768,8 @@ export default function OutboundFormModal({
                               normalize={(v: unknown) =>
                                 Array.isArray(v)
                                   ? v
-                                      .map((x) => Number(x))
-                                      .filter((n) => Number.isInteger(n) && n > 0)
+                                    .map((x) => Number(x))
+                                    .filter((n) => Number.isInteger(n) && n > 0)
                                   : []
                               }
                             >
