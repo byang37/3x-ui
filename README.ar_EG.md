@@ -1,3 +1,5 @@
+[English](/README.md) | [فارسی](/README.fa_IR.md) | [العربية](/README.ar_EG.md) | [中文](/README.zh_CN.md) | [Español](/README.es_ES.md) | [Русский](/README.ru_RU.md)
+
 # 3X-UI Fork: مضاعف الترافيك
 
 هذا المستودع هو fork شخصي من 3X-UI. يتابع المشروع الأصلي، وهذا README يشرح فقط الوظيفة الأساسية المضافة خارج upstream.

@@ -1,3 +1,5 @@
+[English](/README.md) | [فارسی](/README.fa_IR.md) | [العربية](/README.ar_EG.md) | [中文](/README.zh_CN.md) | [Español](/README.es_ES.md) | [Русский](/README.ru_RU.md)
+
 # Fork 3X-UI: ضریب ترافیک
 
 این مخزن یک fork شخصی از 3X-UI است. این fork با پروژه اصلی همگام می‌شود و این README فقط قابلیت‌های اصلی اضافه‌شده خارج از upstream را توضیح می‌دهد.

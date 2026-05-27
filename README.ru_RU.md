@@ -1,3 +1,5 @@
+[English](/README.md) | [فارسی](/README.fa_IR.md) | [العربية](/README.ar_EG.md) | [中文](/README.zh_CN.md) | [Español](/README.es_ES.md) | [Русский](/README.ru_RU.md)
+
 # 3X-UI Fork: множитель трафика
 
 Этот репозиторий является личным fork проекта 3X-UI. Он следует за upstream-проектом, а этот README описывает только основные функции, добавленные сверх upstream.

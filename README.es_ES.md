@@ -1,3 +1,5 @@
+[English](/README.md) | [فارسی](/README.fa_IR.md) | [العربية](/README.ar_EG.md) | [中文](/README.zh_CN.md) | [Español](/README.es_ES.md) | [Русский](/README.ru_RU.md)
+
 # 3X-UI Fork: multiplicador de tráfico
 
 Este repositorio es un fork personal de 3X-UI. Sigue el proyecto upstream y este README se centra solo en las funciones principales agregadas fuera del upstream.

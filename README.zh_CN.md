@@ -1,3 +1,5 @@
+[English](/README.md) | [فارسی](/README.fa_IR.md) | [العربية](/README.ar_EG.md) | [中文](/README.zh_CN.md) | [Español](/README.es_ES.md) | [Русский](/README.ru_RU.md)
+
 # 3X-UI Fork：流量倍率
 
 这是 3X-UI 的个人 fork。本仓库跟随主仓库更新，README 只介绍相对主仓库额外实现的主要功能。
