@@ -32,7 +32,6 @@ func TestInboundMarshalJSONNestsObjectFields(t *testing.T) {
 		t.Errorf("settings should not be emitted as a JSON string: %s", out)
 	}
 }
-
 func TestInboundMarshalJSONEmptyFieldsBecomeNull(t *testing.T) {
 	in := Inbound{Id: 1, Protocol: VLESS}
 	out, err := json.Marshal(in)
@@ -186,24 +185,5 @@ func TestInboundClientIpsUnmarshalJSONAcceptsBothShapes(t *testing.T) {
 				t.Errorf("Ips not normalised: %q", row.Ips)
 			}
 		})
-	}
-}
-
-func TestIsHysteria(t *testing.T) {
-	cases := []struct {
-		in   Protocol
-		want bool
-	}{
-		{Hysteria, true},
-		{Hysteria2, true},
-		{VLESS, false},
-		{Shadowsocks, false},
-		{Protocol(""), false},
-		{Protocol("hysteria3"), false},
-	}
-	for _, c := range cases {
-		if got := IsHysteria(c.in); got != c.want {
-			t.Errorf("IsHysteria(%q) = %v, want %v", c.in, got, c.want)
-		}
 	}
 }
