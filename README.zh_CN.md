@@ -1,63 +1,29 @@
-[English](/README.md) | [فارسی](/README.fa_IR.md) | [العربية](/README.ar_EG.md) | [中文](/README.zh_CN.md) | [Español](/README.es_ES.md) | [Русский](/README.ru_RU.md)
+# 3X-UI Fork：流量倍率
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./media/3x-ui-dark.png">
-    <img alt="3x-ui" src="./media/3x-ui-light.png">
-  </picture>
-</p>
+这是 3X-UI 的个人 fork。本仓库跟随主仓库更新，README 只介绍相对主仓库额外实现的主要功能。
 
-[![Release](https://img.shields.io/github/v/release/byang37/3x-ui.svg)](https://github.com/byang37/3x-ui/releases)
-[![Build](https://img.shields.io/github/actions/workflow/status/byang37/3x-ui/release.yml.svg)](https://github.com/byang37/3x-ui/actions)
-[![GO Version](https://img.shields.io/github/go-mod/go-version/byang37/3x-ui.svg)](#)
-[![Downloads](https://img.shields.io/github/downloads/byang37/3x-ui/total.svg)](https://github.com/byang37/3x-ui/releases/latest)
-[![License](https://img.shields.io/badge/license-GPL%20V3-blue.svg?longCache=true)](https://www.gnu.org/licenses/gpl-3.0.en.html)
-[![Go Reference](https://pkg.go.dev/badge/github.com/byang37/3x-ui/v3.svg)](https://pkg.go.dev/github.com/byang37/3x-ui/v3)
-[![Go Report Card](https://goreportcard.com/badge/github.com/byang37/3x-ui/v3)](https://goreportcard.com/report/github.com/byang37/3x-ui/v3)
+## 主要新增功能
 
-**3X-UI** — 一个基于网页的高级开源控制面板，专为管理 Xray-core 服务器而设计。它提供了用户友好的界面，用于配置和监控各种 VPN 和代理协议。
+### 入站流量倍率
 
-> [!IMPORTANT]
-> 本项目仅用于个人使用和通信，请勿将其用于非法目的，请勿在生产环境中使用。
+本 fork 为入站节点新增了流量倍率功能。
 
-作为原始 X-UI 项目的增强版本，3X-UI 提供了更好的稳定性、更广泛的协议支持和额外的功能。
+- 在“添加入站”和“修改入站”表单中新增“流量倍率”输入框。
+- 默认倍率为 `1`，保持主仓库原有流量统计行为。
+- 当倍率设置为 `2` 时，入站上传和下载流量会按实际使用量的 2 倍统计。
+- 入站下单个客户端的上传和下载流量也会按倍率统计。
+- 客户端剩余流量和是否流量超限的判断使用加权后的流量值。
+- 多节点/远程节点同步入站配置时会携带流量倍率。
+- 订阅链接本身不变；订阅中展示的流量使用量和剩余流量基于加权后的客户端流量统计。
 
-## 快速开始
+## 安装本 fork
 
-```
+```bash
 bash <(curl -Ls https://raw.githubusercontent.com/byang37/3x-ui/master/install.sh)
 ```
 
-完整文档请参阅 [项目Wiki](https://github.com/byang37/3x-ui/wiki)。
+## 主仓库引用
 
-## 特别感谢
+本 fork 基于以下主仓库：
 
-- [alireza0](https://github.com/alireza0/)
-
-## 致谢
-
-- [Iran v2ray rules](https://github.com/chocolate4u/Iran-v2ray-rules) (许可证: **GPL-3.0**): _增强的 v2ray/xray 和 v2ray/xray-clients 路由规则，内置伊朗域名，专注于安全性和广告拦截。_
-- [Russia v2ray rules](https://github.com/runetfreedom/russia-v2ray-rules-dat) (许可证: **GPL-3.0**): _此仓库包含基于俄罗斯被阻止域名和地址数据自动更新的 V2Ray 路由规则。_
-
-## 社区工具
-
-社区围绕 3x-ui 构建的工具和集成。
-
-- [terraform-provider-3x-ui](https://github.com/batonogov/terraform-provider-threexui) (许可证: **MIT**): _使用 Terraform / OpenTofu 通过代码管理入站、客户端、面板设置和 Xray 配置。_
-
-## 支持项目
-
-**如果这个项目对您有帮助，您可以给它一个**:star2:
-
-<a href="https://www.buymeacoffee.com/MHSanaei" target="_blank">
-<img src="./media/default-yellow.png" alt="Buy Me A Coffee" style="height: 70px !important;width: 277px !important;" >
-</a>
-
-</br>
-<a href="https://nowpayments.io/donation/hsanaei" target="_blank" rel="noreferrer noopener">
-   <img src="./media/donation-button-black.svg" alt="Crypto donation button by NOWPayments">
-</a>
-
-## 随时间变化的星标数
-
-[![Stargazers over time](https://starchart.cc/byang37/3x-ui.svg?variant=adaptive)](https://starchart.cc/byang37/3x-ui)
+[MHSanaei/3x-ui](https://github.com/MHSanaei/3x-ui)

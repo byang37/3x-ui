@@ -1,62 +1,29 @@
-[English](/README.md) | [فارسی](/README.fa_IR.md) | [العربية](/README.ar_EG.md) | [中文](/README.zh_CN.md) | [Español](/README.es_ES.md) | [Русский](/README.ru_RU.md)
+# 3X-UI Fork: مضاعف الترافيك
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./media/3x-ui-dark.png">
-    <img alt="3x-ui" src="./media/3x-ui-light.png">
-  </picture>
-</p>
+هذا المستودع هو fork شخصي من 3X-UI. يتابع المشروع الأصلي، وهذا README يشرح فقط الوظيفة الأساسية المضافة خارج upstream.
 
-[![Release](https://img.shields.io/github/v/release/byang37/3x-ui.svg)](https://github.com/byang37/3x-ui/releases)
-[![Build](https://img.shields.io/github/actions/workflow/status/byang37/3x-ui/release.yml.svg)](https://github.com/byang37/3x-ui/actions)
-[![GO Version](https://img.shields.io/github/go-mod/go-version/byang37/3x-ui.svg)](#)
-[![Downloads](https://img.shields.io/github/downloads/byang37/3x-ui/total.svg)](https://github.com/byang37/3x-ui/releases/latest)
-[![License](https://img.shields.io/badge/license-GPL%20V3-blue.svg?longCache=true)](https://www.gnu.org/licenses/gpl-3.0.en.html)
-[![Go Reference](https://pkg.go.dev/badge/github.com/byang37/3x-ui/v3.svg)](https://pkg.go.dev/github.com/byang37/3x-ui/v3)
-[![Go Report Card](https://goreportcard.com/badge/github.com/byang37/3x-ui/v3)](https://goreportcard.com/report/github.com/byang37/3x-ui/v3)
+## الوظيفة الأساسية المضافة
 
-**3X-UI** — لوحة تحكم متقدمة مفتوحة المصدر تعتمد على الويب مصممة لإدارة خادم Xray-core. توفر واجهة سهلة الاستخدام لتكوين ومراقبة بروتوكولات VPN والوكيل المختلفة.
+### مضاعف الترافيك للـ inbound
 
-> [!IMPORTANT]
-> هذا المشروع مخصص للاستخدام الشخصي والاتصال فقط، يرجى عدم استخدامه لأغراض غير قانونية، يرجى عدم استخدامه في بيئة الإنتاج.
+هذا fork يضيف مضاعف ترافيك لعقد inbound.
 
-كمشروع محسن من مشروع X-UI الأصلي، يوفر 3X-UI استقرارًا محسنًا ودعمًا أوسع للبروتوكولات وميزات إضافية.
+- نماذج Add Inbound و Edit Inbound تحتوي على حقل Traffic Multiplier.
+- القيمة الافتراضية هي `1`، وهذا يحافظ على سلوك حساب الترافيك الأصلي.
+- عند ضبط المضاعف على `2`، يتم حساب upload و download للـ inbound بضعف الاستخدام الفعلي.
+- يتم حساب upload و download لكل client داخل inbound بنفس المضاعف.
+- الترافيك المتبقي للـ client وفحص تجاوز الحد يستخدمان القيم الموزونة.
+- مزامنة inbound مع remote nodes ترسل قيمة المضاعف أيضًا.
+- subscription links لا تتغير. استخدام الترافيك والمتبقي في subscription يعتمدان على عدادات client الموزونة.
 
-## البدء السريع
+## تثبيت هذا fork
 
-```
+```bash
 bash <(curl -Ls https://raw.githubusercontent.com/byang37/3x-ui/master/install.sh)
 ```
 
-للحصول على الوثائق الكاملة، يرجى زيارة [ويكي المشروع](https://github.com/byang37/3x-ui/wiki).
+## مرجع upstream
 
-## شكر خاص إلى
+هذا fork مبني على المشروع الأصلي:
 
-- [alireza0](https://github.com/alireza0/)
-
-## الاعتراف
-
-- [Iran v2ray rules](https://github.com/chocolate4u/Iran-v2ray-rules) (الترخيص: **GPL-3.0**): _قواعد توجيه v2ray/xray و v2ray/xray-clients المحسنة مع النطاقات الإيرانية المدمجة وتركيز على الأمان وحظر الإعلانات._
-- [Russia v2ray rules](https://github.com/runetfreedom/russia-v2ray-rules-dat) (الترخيص: **GPL-3.0**): _يحتوي هذا المستودع على قواعد توجيه V2Ray محدثة تلقائيًا بناءً على بيانات النطاقات والعناوين المحظورة في روسيا._
-
-## أدوات المجتمع
-
-أدوات وتكاملات بناها المجتمع حول 3x-ui.
-
-- [terraform-provider-3x-ui](https://github.com/batonogov/terraform-provider-threexui) (الترخيص: **MIT**): _إدارة الاتصالات الواردة والعملاء وإعدادات اللوحة وتكوين Xray كرمز باستخدام Terraform / OpenTofu._
-
-## دعم المشروع
-
-**إذا كان هذا المشروع مفيدًا لك، فقد ترغب في إعطائه**:star2:
-
-<a href="https://www.buymeacoffee.com/MHSanaei" target="_blank">
-<img src="./media/default-yellow.png" alt="Buy Me A Coffee" style="height: 70px !important;width: 277px !important;" >
-</a>
-</br>
-<a href="https://nowpayments.io/donation/hsanaei" target="_blank" rel="noreferrer noopener">
-   <img src="./media/donation-button-black.svg" alt="Crypto donation button by NOWPayments">
-</a>
-
-## النجوم عبر الزمن
-
-[![Stargazers over time](https://starchart.cc/byang37/3x-ui.svg?variant=adaptive)](https://starchart.cc/byang37/3x-ui)
+[MHSanaei/3x-ui](https://github.com/MHSanaei/3x-ui)
